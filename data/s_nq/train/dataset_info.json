@@ -1,0 +1,247 @@
+{
+  "citation": "",
+  "description": "",
+  "features": {
+    "dataset": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "question_id": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "question_text": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "answers_objects": [
+      {
+        "date": {
+          "day": {
+            "dtype": "string",
+            "_type": "Value"
+          },
+          "month": {
+            "dtype": "string",
+            "_type": "Value"
+          },
+          "year": {
+            "dtype": "string",
+            "_type": "Value"
+          }
+        },
+        "number": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "spans": {
+          "feature": {
+            "dtype": "string",
+            "_type": "Value"
+          },
+          "_type": "Sequence"
+        }
+      }
+    ],
+    "contexts": [
+      {
+        "idx": {
+          "dtype": "int64",
+          "_type": "Value"
+        },
+        "is_supporting": {
+          "dtype": "bool",
+          "_type": "Value"
+        },
+        "paragraph_text": {
+          "dtype": "string",
+          "_type": "Value"
+        },
+        "title": {
+          "dtype": "string",
+          "_type": "Value"
+        }
+      }
+    ],
+    "reference": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "gold_context": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "retrieved_contexts": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "MaximumTokenProbability": {
+      "feature": {
+        "dtype": "float32",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "TokenEntropy": {
+      "feature": {
+        "dtype": "float32",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "Perplexity": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "PTrue": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "Verbalized1S": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "MeanPointwiseMutualInformation": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "MeanConditionalPointwiseMutualInformation": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "RenyiNeg": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "FisherRao": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "SemanticEntropy": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "CCP": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "SAR": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "SentenceSAR": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "NumSemSets": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "EigValLaplacian_NLI_score_entail": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "DegMat_NLI_score_entail": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "Eccentricity_NLI_score_entail": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "LexicalSimilarity_rougeL": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "no_context_response": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "context_response": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "tokens_all_context": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "tokens_no_context": {
+      "dtype": "int64",
+      "_type": "Value"
+    },
+    "MahalanobisDistanceSeq_decoder": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "adaptive_rag_one_retrieve": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "adaptive_rag_no_retrieve": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "new_retriever_adaptive_rag_one_retrieve": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "new_retriever_adaptive_rag_no_retrieve": {
+      "dtype": "string",
+      "_type": "Value"
+    },
+    "RelativeMahalanobisDistanceSeq_decoder": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "RDESeq_decoder": {
+      "dtype": "float64",
+      "_type": "Value"
+    },
+    "verbalized_confidence_1s": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "verbalized_1s_answer": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "verbalized_1s_top2_answer": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "context_answer_phi3": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    },
+    "context_answer_qwen2.5-1.5b": {
+      "feature": {
+        "dtype": "string",
+        "_type": "Value"
+      },
+      "_type": "Sequence"
+    }
+  },
+  "homepage": "",
+  "license": ""
+}
