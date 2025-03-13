@@ -46,6 +46,15 @@ def main():
     # 1) Load config
     config = load_config(args.config_path)
 
+
+
+    score_dir = os.path.join(config['cache_dir'], 'SCoRE')
+    os.makedirs(score_dir, exist_ok=True)
+    run_dir = os.path.join(score_dir, config['run_name'])
+    os.makedirs(run_dir, exist_ok=True)
+
+
+
     print(f"[INFO] Loading dataset from: {config['data_path']}")
     ds = datasets.load_from_disk(config['data_path'])
 
@@ -93,12 +102,12 @@ def main():
     os.environ["WANDB_CACHE_DIR"] = config['cache_dir']
     
     score_config = RLOOConfig(
-        output_dir='test_rl_dir/',
+        output_dir=run_dir,
         exp_name=config['run_name'],
         seed=config['random_seed'],
         report_to='wandb',
         per_device_train_batch_size=config['per_device_train_batch_size'],
-        local_rollout_forward_batch_size=config['per_device_train_batch_size'],
+        local_rollout_forward_batch_size=config['local_rollout_forward_batch_size'],
         gradient_accumulation_steps=config['gradient_accumulation_steps'],
         response_length=config['max_tokens'],
         temperature=config['temperature'],
@@ -113,7 +122,7 @@ def main():
     trainer = SCoRETrainer(
         config=score_config,
         algo_config=config,
-        processing_class=tokenizer,  # or some Processor
+        processing_class=tokenizer,
         policy=model, 
         ref_policy=ref_model, 
         reward_model=reward_function, 
