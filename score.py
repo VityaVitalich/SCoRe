@@ -15,6 +15,20 @@ from copy import deepcopy
 from trl import RLOOConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorWithPadding
 import torch
+from dataclasses import dataclass, field
+
+
+@dataclass
+class SCoREConfig(RLOOConfig):
+    init_kl_coef: float = field(
+        default=0.01,
+        metadata={"help": "coef for initial generation KL"},
+    )
+    corr_kl_coef: float = field(
+        default=0.01,
+        metadata={"help": "coef for correction KL"},
+    )
+
 
 def custom_collate_fn(features, config, collator):
     # 1) Extract the text columns you want to keep
@@ -101,7 +115,7 @@ def main():
     os.environ["WANDB_DIR"] = config['cache_dir']
     os.environ["WANDB_CACHE_DIR"] = config['cache_dir']
     
-    score_config = RLOOConfig(
+    score_config = SCoREConfig(
         output_dir=run_dir,
         exp_name=config['run_name'],
         seed=config['random_seed'],
@@ -113,7 +127,9 @@ def main():
         temperature=config['temperature'],
         total_episodes=config['total_episodes'],
         num_sample_generations=0,
-        kl_coef=config['kl_coef']
+        corr_kl_coef=config['corr_kl_coef'],
+        init_kl_coef=config['init_kl_coef'],
+        save_steps=config['save_steps']
 
     )
 

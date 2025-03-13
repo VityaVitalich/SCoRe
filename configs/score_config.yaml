@@ -38,3 +38,4 @@ learning_rate: 6.0e-5
 num_warmup_steps: 20 # number of warmup steps in scheduler
 corr_kl_coef: 0.1
 init_kl_coef: 0.2
+save_steps: 100 # save every <N> steps
