@@ -307,14 +307,15 @@ class SCoRETrainer(Trainer):
                     )
 
                     # We store only the portion beyond the prompt length
-                    context_len = queries.shape[1]
-                    init_answers = init_outputs[:, context_len:]
+                    init_context_len = queries.shape[1]
+                    init_answer_len = init_outputs.shape[1]
+                    init_answers = init_outputs[:, init_context_len:]
 
                     # logp(policy) for init
                     init_logprob = selective_log_softmax(init_logits, init_answers)
                     # logp(ref) for init
                     ref_outputs = forward(self.ref_policy, init_outputs, self.processing_class.pad_token_id)
-                    ref_logits = ref_outputs.logits[:, context_len - 1 : -1]
+                    ref_logits = ref_outputs.logits[:, init_context_len - 1 : -1]
                     ref_logits /= args.temperature + 1e-7
                     ref_logprob = selective_log_softmax(ref_logits, init_answers)
 
@@ -365,32 +366,20 @@ class SCoRETrainer(Trainer):
                     ref_corr_logprob = ref_corr_logprob.masked_fill_(mask, 0)
                     kl_corr = (corr_logprob - ref_corr_logprob).sum(dim=1)
 
-                    del corr_logits, ref_corr_logits, ref_corr_logprob, corr_logprob, mask
+                    del corr_logits, ref_corr_logits, ref_corr_logprob, corr_logprob, mask, corr_inputs
 
             torch.cuda.empty_cache()
             gc.collect()
 
-            with torch.no_grad():
-                corr_output_text = self.processing_class.batch_decode(corr_tokens, skip_special_tokens=True)
-                
-                reward_vals = [self.reward_model(
-                        model_answer=corr_output,
-                        ground_truth=reference
-                        ) 
-                        for (corr_output, reference) in zip(corr_output_text, data[self.algo_config['gold_col']]
-                        )
-                        ]
-                reward_vals = torch.tensor(
-                    reward_vals,
-                    dtype=torch.float,
-                    device=device
-                )
-                reward_vals = reward_vals.reshape(-1)
-
-
-            # final scalar reward
-            final_reward = reward_vals - args.init_kl_coef * kl_init - args.corr_kl_coef * kl_corr
-
+            corr_output_text = self.processing_class.batch_decode(corr_tokens, skip_special_tokens=True)
+            final_reward, reward_init, reward_corr = self.calculate_reward(
+                init_answer_texts=init_answer_texts,
+                corr_output_text=corr_output_text,
+                data=data, 
+                args=args,
+                kl_init=kl_init,
+                kl_corr=kl_corr,
+                device=device)
 
             # ------------------------
             # 3) REINFORCE on correction
@@ -408,10 +397,9 @@ class SCoRETrainer(Trainer):
                     mb_idx = slice(micro_start, micro_end)
                     mb_corr_outputs = corr_outputs[mb_idx]
                     mb_corr_tokens = corr_tokens[mb_idx]
-                    mb_corr_inputs = corr_inputs[mb_idx]
+                    mb_init_tokens = init_answers[mb_idx]
                     mb_final_reward = final_reward[mb_idx]
 
-                    corr_context_len = mb_corr_inputs.shape[1]
                     # forward pass
                     out = forward(self.model, mb_corr_outputs, self.processing_class.pad_token_id)
                     logits_corr = out.logits[:, corr_context_len - 1 : -1]
@@ -423,6 +411,20 @@ class SCoRETrainer(Trainer):
 
                     # # sum across time
                     sum_lp = logprob_corr.sum(dim=1)
+
+                    if args.stage == 2:
+                        logits_init = out.logits[:, init_context_len - 1 : init_answer_len]
+                        logits_init /= args.temperature + 1e-7
+                        logprob_init = selective_log_softmax(logits_init, mb_init_tokens)
+
+                        mask = (mb_init_tokens == self.processing_class.pad_token_id)
+                        logprob_init = logprob_init.masked_fill_(mask, 0)
+
+                        # # sum across time
+                        sum_lp_init = logprob_init.sum(dim=1)
+                        
+                        sum_lp += sum_lp_init
+
                     # negative sign => we want to maximize => so we minimize negative
                     loss = -(mb_final_reward * sum_lp).mean()
 
@@ -443,10 +445,14 @@ class SCoRETrainer(Trainer):
             with torch.no_grad():
                 # e.g. gather stats for logging
                 mean_kl_init = accelerator.gather_for_metrics(kl_init).mean().item()
-                mean_reward = accelerator.gather_for_metrics(reward_vals).mean().item()
+                mean_kl_corr = accelerator.gather_for_metrics(kl_corr).mean().item()
+                mean_reward_corr = accelerator.gather_for_metrics(reward_corr).mean().item()
+                mean_reward_init = accelerator.gather_for_metrics(reward_init).mean().item()
                 metrics = {}
                 metrics["score/kl_init"] = mean_kl_init
-                metrics["score/reward"] = mean_reward
+                metrics["score/kl_corr"] = mean_kl_corr
+                metrics["score/reward_init"] = mean_reward_init
+                metrics["score/reward_corr"] = mean_reward_corr
                 metrics["score/final_reward"] = accelerator.gather_for_metrics(final_reward).mean().item()
                 metrics["loss"] = loss.item()
                 metrics["episode"] = self.state.episode
@@ -454,7 +460,7 @@ class SCoRETrainer(Trainer):
                 # log
                 self.log(metrics)
 
-            del corr_outputs, corr_tokens, corr_inputs, out, logits_corr, logprob_corr, sum_lp, final_reward, kl_init, kl_corr
+            del corr_outputs, corr_tokens, out, logits_corr, logprob_corr, sum_lp, final_reward, kl_init, kl_corr, reward_init, reward_corr
             torch.cuda.empty_cache()
             gc.collect()
 
@@ -483,6 +489,44 @@ class SCoRETrainer(Trainer):
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
         print("SCoRE training completed!")
+
+    def calculate_reward(self, init_answer_texts, corr_output_text, data, args, kl_init, kl_corr, device):
+        with torch.no_grad():
+            reward_corr = [self.reward_model(
+                    model_answer=corr_output,
+                    ground_truth=reference
+                    ) 
+                    for (corr_output, reference) in zip(corr_output_text, data[self.algo_config['gold_col']]
+                    )
+                ]
+            reward_corr = torch.tensor(
+                reward_corr,
+                dtype=torch.float,
+                device=device
+            )
+            reward_corr = reward_corr.reshape(-1)
+
+            reward_init = [self.reward_model(
+                    model_answer=init_output,
+                    ground_truth=reference
+                    ) 
+                    for (init_output, reference) in zip(init_answer_texts, data[self.algo_config['gold_col']]
+                    )
+                ]
+            reward_init = torch.tensor(
+                reward_init,
+                dtype=torch.float,
+                device=device
+            )
+            reward_init = reward_init.reshape(-1)
+
+        final_reward = reward_corr - args.init_kl_coef * kl_init - args.corr_kl_coef * kl_corr
+        
+        if args.stage == 2:
+            bonus = args.stage2_alpha * (reward_corr - reward_ini)
+            final_reward += (reward_init + bonus)
+        
+        return final_reward, reward_init, reward_corr
 
     def generate_completions(self, sampling: bool = False):
         """

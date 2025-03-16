@@ -20,6 +20,10 @@ from dataclasses import dataclass, field
 
 @dataclass
 class SCoREConfig(RLOOConfig):
+    stage: int = field(
+        default=1,
+        metadata={"help": "Stage of SCoRE Training"},
+    )
     init_kl_coef: float = field(
         default=0.01,
         metadata={"help": "coef for initial generation KL"},
@@ -129,8 +133,8 @@ def main():
         num_sample_generations=0,
         corr_kl_coef=config['corr_kl_coef'],
         init_kl_coef=config['init_kl_coef'],
-        save_steps=config['save_steps']
-
+        save_steps=config['save_steps'],
+        stage=1
     )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
