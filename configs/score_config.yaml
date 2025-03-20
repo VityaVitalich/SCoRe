@@ -27,9 +27,10 @@ number_output_initial_generations: 1
 
 # Sampling Parameters
 temperature: 0.7                    # Sampling temperature
-max_tokens: 2048                     # Maximum number of tokens to generate
+max_tokens: 1024                     # Maximum number of tokens to generate
 
 # total batch = per_device_train_batch_size * num_gpus * gradient_accumulation_steps
+train_stage: 2
 per_device_train_batch_size: 1
 gradient_accumulation_steps: 2
 local_rollout_forward_batch_size: 2
@@ -39,3 +40,4 @@ num_warmup_steps: 20 # number of warmup steps in scheduler
 corr_kl_coef: 0.1
 init_kl_coef: 0.2
 save_steps: 100 # save every <N> steps
+stage2_alpha: 0.5

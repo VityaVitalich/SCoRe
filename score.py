@@ -32,6 +32,10 @@ class SCoREConfig(RLOOConfig):
         default=0.01,
         metadata={"help": "coef for correction KL"},
     )
+    stage2_alpha: float = field(
+        default=0.5,
+        metadata={"help": "bonus multiplier for correction improvement"},
+    )
 
 
 def custom_collate_fn(features, config, collator):
@@ -134,7 +138,8 @@ def main():
         corr_kl_coef=config['corr_kl_coef'],
         init_kl_coef=config['init_kl_coef'],
         save_steps=config['save_steps'],
-        stage=1
+        stage=config['train_stage'],
+        stage2_alpha=config['stage2_alpha']
     )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])
