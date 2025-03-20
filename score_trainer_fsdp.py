@@ -325,13 +325,13 @@ class SCoRETrainer(Trainer):
                     ref_logprob = ref_logprob.masked_fill_(mask, 0)
                     kl_init = (init_logprob - ref_logprob).sum(dim=1)
 
-                    del ref_logprob, ref_logits, init_logprob, init_logits, init_outputs, queries
+                    del ref_logprob, ref_logits, init_logprob, init_logits
                     torch.cuda.empty_cache()
 
                 # ------------------------
                 # 2) Generate CORRECTION
                 # ------------------------
-                    init_answer_texts = self.processing_class.batch_decode(init_answers, skip_special_tokens=False)
+                    init_answer_texts = self.processing_class.batch_decode(init_answers, skip_special_tokens=True)
                     corr_inputs = build_correction_inputs_for_batch(
                         data, 
                         init_answer_texts,
@@ -398,7 +398,10 @@ class SCoRETrainer(Trainer):
                     mb_corr_outputs = corr_outputs[mb_idx]
                     mb_corr_tokens = corr_tokens[mb_idx]
                     mb_init_tokens = init_answers[mb_idx]
+                    mb_init_outputs = init_outputs[mb_idx]
                     mb_final_reward = final_reward[mb_idx]
+                    mb_queries = queries[mb_idx]
+                    init_context_len = mb_queries.shape[1]
 
                     # forward pass
                     out = forward(self.model, mb_corr_outputs, self.processing_class.pad_token_id)
@@ -413,7 +416,8 @@ class SCoRETrainer(Trainer):
                     sum_lp = logprob_corr.sum(dim=1)
 
                     if args.stage == 2:
-                        logits_init = out.logits[:, init_context_len - 1 : init_answer_len]
+                        init_out = forward(self.model, mb_init_outputs, self.processing_class.pad_token_id)
+                        logits_init = init_out.logits[:, init_context_len - 1 : -1]
                         logits_init /= args.temperature + 1e-7
                         logprob_init = selective_log_softmax(logits_init, mb_init_tokens)
 
@@ -460,7 +464,7 @@ class SCoRETrainer(Trainer):
                 # log
                 self.log(metrics)
 
-            del corr_outputs, corr_tokens, out, logits_corr, logprob_corr, sum_lp, final_reward, kl_init, kl_corr, reward_init, reward_corr
+            del corr_outputs, corr_tokens, out, logits_corr, logprob_corr, sum_lp, final_reward, kl_init, kl_corr, reward_init, reward_corr, init_outputs, queries
             torch.cuda.empty_cache()
             gc.collect()
 
@@ -523,7 +527,7 @@ class SCoRETrainer(Trainer):
         final_reward = reward_corr - args.init_kl_coef * kl_init - args.corr_kl_coef * kl_corr
         
         if args.stage == 2:
-            bonus = args.stage2_alpha * (reward_corr - reward_ini)
+            bonus = args.stage2_alpha * (reward_corr - reward_init)
             final_reward += (reward_init + bonus)
         
         return final_reward, reward_init, reward_corr
