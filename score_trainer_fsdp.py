@@ -50,6 +50,7 @@ from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from copy import deepcopy
 
 
+
 # TODO: Add Scheduler, add validation
 
 INVALID_LOGPROB = 1.0
@@ -237,6 +238,7 @@ class SCoRETrainer(Trainer):
             stateful_callbacks=[
                 cb for cb in self.callback_handler.callbacks + [self.control] if isinstance(cb, ExportableState)
             ],
+            save_steps=args.save_steps
         )
         self.current_flos = 0
         self.hp_search_backend = None

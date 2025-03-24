@@ -16,6 +16,7 @@ from trl import RLOOConfig
 from transformers import AutoModelForCausalLM, AutoTokenizer, DataCollatorWithPadding
 import torch
 from dataclasses import dataclass, field
+from peft import get_peft_model, TaskType, LoraConfig
 
 
 @dataclass
@@ -118,6 +119,21 @@ def main():
     )
     ref_model = deepcopy(model)
 
+    if config['use_lora']:
+        print(f"[INFO] Adding LoRA with R {config['lora_rank']}")
+        lora_config = LoraConfig(
+            task_type=TaskType.CAUSAL_LM,
+            inference_mode=False,
+            r=config['lora_rank'],
+            lora_alpha=config['lora_alpha'],
+            lora_dropout=config['lora_dropout'],
+            target_modules=['q_proj', 'k_proj', 'v_proj', 'o_proj', 'gate_proj', 'up_proj', 'down_proj'],
+            #config['lora_target_modules'],
+            init_lora_weights=True,
+            #use_dora=lora_args.dora
+        )
+        model = get_peft_model(model, lora_config)
+
 
     os.environ["WANDB_PROJECT"] = config['wandb_project_name']
     os.environ["WANDB_DIR"] = config['cache_dir']
@@ -139,7 +155,8 @@ def main():
         init_kl_coef=config['init_kl_coef'],
         save_steps=config['save_steps'],
         stage=config['train_stage'],
-        stage2_alpha=config['stage2_alpha']
+        stage2_alpha=config['stage2_alpha'],
+        save_only_model=True
     )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=config['learning_rate'])

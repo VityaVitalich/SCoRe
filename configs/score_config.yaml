@@ -12,7 +12,7 @@ id_col: "unique_id"                        # Unique identifier column in the dat
 question_col: "problem"            # Column containing the question text. "question_text" for QA, "problem" for math500
 gold_col: "answer"                   # Reference/GT answer column. "reference" for QA, "answer" for math500
 
-run_name: "test_score_math"
+run_name: "test_lora"
 
 # Reward Function
 evaluator_mode: 'final'   # "default" will input all answer in reward func, "final" only string after "evaluator_answer_marker"
@@ -26,18 +26,23 @@ few_shot_dir: "few_shots"            # Directory containing few-shot JSON files
 number_output_initial_generations: 1         
 
 # Sampling Parameters
-temperature: 0.7                    # Sampling temperature
+temperature: 0.9                    # Sampling temperature
 max_tokens: 1024                     # Maximum number of tokens to generate
 
 # total batch = per_device_train_batch_size * num_gpus * gradient_accumulation_steps
-train_stage: 2
+train_stage: 1
 per_device_train_batch_size: 1
-gradient_accumulation_steps: 2
-local_rollout_forward_batch_size: 2
-total_episodes: 1000 # number of train samples seen. number of gradient steps = total_episodes / total batch 
-learning_rate: 6.0e-5
-num_warmup_steps: 20 # number of warmup steps in scheduler
+gradient_accumulation_steps: 4
+local_rollout_forward_batch_size: 4
+total_episodes: 100 # number of train samples seen. number of gradient steps = total_episodes / total batch 
+learning_rate: 5.0e-5
+num_warmup_steps: 100 # number of warmup steps in scheduler
 corr_kl_coef: 0.1
 init_kl_coef: 0.2
-save_steps: 100 # save every <N> steps
-stage2_alpha: 0.5
+save_steps: 1 # save every <N> steps
+stage2_alpha: 10
+
+use_lora: True
+lora_rank: 32
+lora_alpha: 8
+lora_dropout: 0.1
