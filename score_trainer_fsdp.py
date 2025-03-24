@@ -391,55 +391,61 @@ class SCoRETrainer(Trainer):
 
 
             # or if you want to chunk further
-            for micro_start in range(0, args.local_batch_size, args.per_device_train_batch_size):
-                with accelerator.accumulate(self.model):
-                    micro_end = micro_start + args.per_device_train_batch_size
-                    mb_idx = slice(micro_start, micro_end)
-                    mb_corr_outputs = corr_outputs[mb_idx]
-                    mb_corr_tokens = corr_tokens[mb_idx]
-                    mb_init_tokens = init_answers[mb_idx]
-                    mb_init_outputs = init_outputs[mb_idx]
-                    mb_final_reward = final_reward[mb_idx]
-                    mb_queries = queries[mb_idx]
-                    init_context_len = mb_queries.shape[1]
+            micro_step = 0
+            total_loss = 0
+            for micro_start in range(0, args.local_batch_size, args.per_device_train_batch_size):                
+                micro_end = micro_start + args.per_device_train_batch_size
+                mb_idx = slice(micro_start, micro_end)
+                mb_corr_outputs = corr_outputs[mb_idx]
+                mb_corr_tokens = corr_tokens[mb_idx]
+                mb_init_tokens = init_answers[mb_idx]
+                mb_init_outputs = init_outputs[mb_idx]
+                mb_final_reward = final_reward[mb_idx]
+                mb_queries = queries[mb_idx]
+                init_context_len = mb_queries.shape[1]
 
-                    # forward pass
-                    out = forward(self.model, mb_corr_outputs, self.processing_class.pad_token_id)
-                    logits_corr = out.logits[:, corr_context_len - 1 : -1]
-                    logits_corr /= args.temperature + 1e-7
-                    logprob_corr = selective_log_softmax(logits_corr, mb_corr_tokens)
+                # forward pass
+                out = forward(self.model, mb_corr_outputs, self.processing_class.pad_token_id)
+                logits_corr = out.logits[:, corr_context_len - 1 : -1]
+                logits_corr /= args.temperature + 1e-7
+                logprob_corr = selective_log_softmax(logits_corr, mb_corr_tokens)
 
-                    mask = (mb_corr_tokens == self.processing_class.pad_token_id)
-                    logprob_corr = logprob_corr.masked_fill_(mask, 0)
+                mask = (mb_corr_tokens == self.processing_class.pad_token_id)
+                logprob_corr = logprob_corr.masked_fill_(mask, 0)
+
+                # # sum across time
+                sum_lp = logprob_corr.sum(dim=1)
+
+                if args.stage == 2:
+                    init_out = forward(self.model, mb_init_outputs, self.processing_class.pad_token_id)
+                    logits_init = init_out.logits[:, init_context_len - 1 : -1]
+                    logits_init /= args.temperature + 1e-7
+                    logprob_init = selective_log_softmax(logits_init, mb_init_tokens)
+
+                    mask = (mb_init_tokens == self.processing_class.pad_token_id)
+                    logprob_init = logprob_init.masked_fill_(mask, 0)
 
                     # # sum across time
-                    sum_lp = logprob_corr.sum(dim=1)
+                    sum_lp_init = logprob_init.sum(dim=1)
+                    
+                    sum_lp += sum_lp_init
 
-                    if args.stage == 2:
-                        init_out = forward(self.model, mb_init_outputs, self.processing_class.pad_token_id)
-                        logits_init = init_out.logits[:, init_context_len - 1 : -1]
-                        logits_init /= args.temperature + 1e-7
-                        logprob_init = selective_log_softmax(logits_init, mb_init_tokens)
+                # negative sign => we want to maximize => so we minimize negative
+                loss = -(mb_final_reward * sum_lp).mean()
+                loss = loss / self.algo_config['gradient_accumulation_steps']
+                total_loss += loss.item()
 
-                        mask = (mb_init_tokens == self.processing_class.pad_token_id)
-                        logprob_init = logprob_init.masked_fill_(mask, 0)
+                # Backprop
+                accelerator.backward(loss)
+                micro_step += 1
 
-                        # # sum across time
-                        sum_lp_init = logprob_init.sum(dim=1)
-                        
-                        sum_lp += sum_lp_init
-
-                    # negative sign => we want to maximize => so we minimize negative
-                    loss = -(mb_final_reward * sum_lp).mean()
-
-
-
-                    # Backprop
-                    accelerator.backward(loss)
+                if micro_step == self.algo_config['gradient_accumulation_steps']:
                     self.optimizer.step()
+                    self.lr_scheduler.step()
+                    self.optimizer.zero_grad()
 
-
-                self.lr_scheduler.step()
+                    micro_step = 0
+                    
 
 
 
@@ -458,12 +464,14 @@ class SCoRETrainer(Trainer):
                 metrics["score/reward_init"] = mean_reward_init
                 metrics["score/reward_corr"] = mean_reward_corr
                 metrics["score/final_reward"] = accelerator.gather_for_metrics(final_reward).mean().item()
-                metrics["loss"] = loss.item()
+                metrics["loss"] = total_loss
                 metrics["episode"] = self.state.episode
                 metrics["step"] = step_idx
                 # log
                 self.log(metrics)
 
+                total_loss = 0
+                
             del corr_outputs, corr_tokens, out, logits_corr, logprob_corr, sum_lp, final_reward, kl_init, kl_corr, reward_init, reward_corr, init_outputs, queries
             torch.cuda.empty_cache()
             gc.collect()
